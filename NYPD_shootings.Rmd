@@ -1,0 +1,105 @@
+---
+title: "NYPD Shootings"
+author: "A Tobin"
+date: "2023-09-18"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+## NYPD Shooting Report
+
+The data I'll be analyzing here was collected by the City of New York and describes shootings that occurred from 2006 to 2022. It contains information about perpetrators and victims, including their age, sex, race, and location, as well as information about the date and time of the incidents.
+
+I will be evaluating which boroughs saw the most shootings during this time period, as well as the race of the victims.
+
+## Loading the data
+
+First we will load the packages we'll need.
+
+```{r, echo=FALSE}
+library(tidyverse)
+library(readr)
+```
+
+Then we will use the readr package to load our csv data into a variable df.
+
+```{r, echo=FALSE}
+df <- read_csv("https://data.cityofnewyork.us/api/views/833y-fsy8/rows.csv?accessType=DOWNLOAD")
+```
+
+### Looking at the data
+
+First we will check a summary of the data
+
+```{r}
+summary(df)
+```
+
+### Tidying data
+
+We'll remove columns that we won't need for our analysis and save that to a new variable, pruned_df.
+
+```{r, echo=FALSE}
+pruned_df <- df %>% select(-one_of('INCIDENT_KEY', 'LOC_OF_OCCUR_DESC', 'LOC_CLASSFCTN_DESC', 'JURISDICTION_CODE', 'STATISTICAL_MURDER_FLAG', 'X_COORD_CD', 'Y_COORD_CD', 'Latitude', 'Longitude', 'Lon_Lat', 'PRECINCT'))
+```
+
+Now we should go ahead and make sure all of our remaining columns are of the right type.
+
+We'll use the lubridate package (included in tidyverse) to change the OCCUR_DATE column from character to date. It's in the mdy format so we'll convert based on that.
+
+Then we'll convert the BORO, PERP_AGE_GROUP, PERP_SEX, PERP_RACE, VIC_AGE_GROUP, VIC_SEX, and VIC_RACE columns to factors.
+
+```{r}
+pruned_df$OCCUR_DATE <- mdy(pruned_df$OCCUR_DATE)
+
+factor_columns <- c('PERP_AGE_GROUP', 'PERP_SEX', 'PERP_RACE', 'VIC_AGE_GROUP', 'VIC_SEX', 'VIC_RACE')
+pruned_df[,factor_columns] <- lapply(pruned_df[,factor_columns], factor)
+```
+
+```{r}
+summary(pruned_df)
+```
+
+There is a fair amount of missing data in perp age group, perp sex, and perp race. I would imagine this data is unavailable for crimes that were not solved or where no perpetrator was identified, since we do not see so much missing data for the victim categories.
+
+I think it will be hard to make overarching statements about perpetrator characteristics from this data, but we can see where there either might be some bias or possible trends.
+
+## Victims by borough over time
+
+I'd like to look at whether crime has moved around NYC during the years reported in this data. To do this I'll make a count of rows for each borough for each year and then use a grouped bar chart to show how many reported crimes occurred in each borough over time.
+
+```{r}
+pruned_df$year <- as.numeric(format(pruned_df$OCCUR_DATE, "%Y"))
+boro_year <- pruned_df %>% count(pruned_df$BORO, pruned_df$year)
+
+specie <- boro_year$`pruned_df$year`
+condition <- boro_year$`pruned_df$BORO`
+value <- boro_year$n
+
+ggplot(boro_year, aes(fill=condition, y=value, x=specie)) + 
+    geom_bar(position="dodge", stat="identity")
+```
+
+It appears that crime in most areas was on a decreasing trend from about 2011 to 2019. However, 2020 saw a large increase back to pre-2011 crime rates, and even higher in the Bronx. We can't be sure from this data alone, but the biggest event I recall from 2020 was the beginning of the pandemic. There are many possible ways this could affect crime rates, but at the very least the correlation is there.
+
+## Victim race
+
+Victim race is a category that appears to have solid data in this dataset, so this could make a good candidate for further interpretation and visualization. I'll use a barplot to compare how often different races are victimized in the reported data.
+
+```{r}
+ggplot(pruned_df, aes(x=VIC_RACE, y=VIC_RACE, fill=VIC_RACE)) +
+  geom_bar(stat = "identity") + 
+  coord_flip()
+```
+
+We can see from the barplot above that Black and Hispanic account for most of the crime victims in this dataset. Since we don't have data on the racial makeup of NYC, it's hard to tell if you're just as likely to be a victim of crime regardless of race (if the racial makeup of NYC looks proportionally similar to these victim stats) or if certain racial groups have a greater likelihood of being victims of crime.
+
+## Conclusion and Bias
+
+In conclusion, from this NYPD dataset we can see that crime was on a decreasing trend from about 2011 until 2020 when crime appeared to increase back to 2011 levels before possibly returning to a slowly decreasing trend. We can see this from the data on where victims of crime were located. This gives us both a view of where crimes took place, as well as how much crime was being reported.
+
+The key statement above is "how much crime was being reported." Various forms of bias can present themselves in this data because it's possible that not all crimes are reported in the first place, or that police tend to frequent boroughs like Brooklyn and the Bronx, which may also lead to the results we see on victim race in the dataset. If police are more present in areas with more Black and Hispanic people, then it makes sense that we'll see them over-represented in the dataset.
+
+There are interesting conclusions to be drawn from the data I focused on, but it's also important to keep in mind that we would need a lot more information before we could make any sort of definitive statements about where crime occurs and who is victimized primarily.
